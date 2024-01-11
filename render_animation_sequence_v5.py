@@ -25,71 +25,68 @@ def update_camera_list(self, context):
 def update_track_list(self, context):
     arm_name = self.rig_name
     track_items = []
-    if arm_name:
-        track_items = [(trk.name, trk.name, '') for trk in bpy.data.objects[arm_name].animation_data.nla_tracks] #check object not armature
-    '''
-    if self.track_name:
-        arm_name = self.rig_name
-        track_name = self.track_name
-        strips = bpy.data.objects[arm_name].animation_data.nla_tracks[track_name].strips
-        if strips:
-            self.frame_start = strips[0].frame_start
-            self.frame_end = strips[0].frame_end
-    '''    
+    if arm_name and bpy.data.objects[arm_name].animation_data and bpy.data.objects[arm_name].animation_data.nla_tracks:
+        track_items = [(trk.name, trk.name, '') for trk in bpy.data.objects[arm_name].animation_data.nla_tracks] #check object not armature 
     return track_items
-'''    
-def update_start_frame(self, context):
-    arm_name = self.rig_name
-    track_name = self.track_name
-    start_frame = 0
-    
-    if arm_name and track_name:
-        strips = bpy.data.objects[arm_name].animation_data.nla_tracks[track_name].strips
-        if strips:
-            start_frame = strips[0].frame_start
-    
-    return start_frame
 
-def update_end_frame(self, context):
-    arm_name = self.rig_name
-    track_name = self.track_name
-    end_frame = 0
+def update_output_folder(self, context):
+    #set output folder based on the context
+    output = "//..\\render\\"
+    if self.character_name:
+        output += f"{self.character_name}\\"
+    if self.track_name:
+        output += f"{self.track_name}\\"
+    if self.cam_name:
+        output += f"{self.cam_name}\\"
+        
+    self.output_path = output
     
-    if arm_name and track_name:
-        strips = bpy.data.objects[arm_name].animation_data.nla_tracks[track_name].strips
-        if strips:
-            end_frame = strips[0].frame_end
-    
-    return end_frame
-'''
+    #set start and end frames
+    if self.track_name:
+        self.frame_start = int(bpy.data.objects[self.rig_name].animation_data.nla_tracks[self.track_name].strips[0].frame_start_ui)
+        self.frame_end = int(bpy.data.objects[self.rig_name].animation_data.nla_tracks[self.track_name].strips[0].frame_end_ui)
+
 class RENDER_Props(bpy.types.PropertyGroup):
     
+    folded: bpy.props.BoolProperty(
+        name="",
+        default=True
+    )
+    enabled: bpy.props.BoolProperty( 
+        name="",
+        description="Enable Render Layer",
+        default=True
+    )
+    character_name: bpy.props.StringProperty(
+        name="character_name",
+        description="Used in the folder structure",
+        update=update_output_folder
+    )
     rig_name: bpy.props.EnumProperty(
         items=update_armature_list, 
         description="Armatures", 
-        update=update_armature_list
+        update=update_output_folder
     )
     scene_name: bpy.props.EnumProperty(
         items=update_scene_list, 
         description="Scenes", 
-        update=update_armature_list
+        update=update_output_folder
     )
     cam_name: bpy.props.EnumProperty(
         items=update_camera_list, 
         description="Cameras", 
-        update=update_armature_list
+        update=update_output_folder
     )
     track_name: bpy.props.EnumProperty(
         items=update_track_list, 
         description="Actions", 
-        update=update_armature_list
+        update=update_output_folder
     )
     frame_start: bpy.props.IntProperty(default=0, description="start:")
     frame_end: bpy.props.IntProperty(default=0, description="end:")
     output_path: bpy.props.StringProperty(
-        name="",
         description="Path to Directory",
-        default="output",
+        default="//..\\render\\",
         maxlen=1024,
         subtype='DIR_PATH')
 
@@ -104,28 +101,34 @@ class RENDER_PT(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         
-        box = layout.box()
-        box.operator('render.add_render', text = "Add")
+        add_button= layout.row()
+        add_button.operator('render.add_render', text = "Add")
 
         
         # Here you want to iterate over your properties and keep the index for the Delete button
         for i, prop in enumerate(context.window_manager.render_panel_props):
-            row = layout.row()
-            row.label(text = f'Render {i + 1}')
-            row.prop(prop, "rig_name")
-            row.prop(prop, "scene_name")
-            row.prop(prop, "cam_name")
-            row.prop(prop, "track_name")
-            row.prop(prop, "frame_start")
-            row.prop(prop, "frame_end")
-            row.prop(prop, "output_path")
-            #button delete
-            row.alert = True
-            row.operator('render.delete_render', text = "-").index=i
+            render_box = layout.box()
+            header = render_box.row()
+            header.prop(prop, "enabled")
+            header.label(text = f'Render {i + 1}')
+            header.prop(prop, "folded", icon='DISCLOSURE_TRI_DOWN' if prop.folded else 'DISCLOSURE_TRI_RIGHT')
+            if prop.folded:
+                col = render_box.column()
+                col.prop(prop, "character_name")
+                col.prop(prop, "rig_name")
+                col.prop(prop, "scene_name")
+                col.prop(prop, "cam_name")
+                col.prop(prop, "track_name")
+                row = col.row()
+                row.prop(prop, "frame_start")
+                row.prop(prop, "frame_end")
+                col.prop(prop, "output_path")
+                #button delete
+                col.alert = True
+                col.operator('render.delete_render', text = "-").index=i
         #render button
-        row2 = layout.row()
-        box2 = row2.box()
-        box2.operator('render.render_seq_operator', text = "Render", icon='RENDER_ANIMATION')
+        render_button = layout.row()
+        render_button.operator('render.render_seq_operator', text = "Render", icon='RENDER_ANIMATION')
 
 class RENDER_OT_AddRender(bpy.types.Operator):
     """ Create a new render with its sensor(s) and/or effector(s) """
@@ -255,22 +258,25 @@ class RENDER_SEQ_OT(bpy.types.Operator):
                 print("Nothing to Render!")
                 return {'FINISHED'}
             elif self.rendering is False:
-                #set the render settings and render
-                rig_name = self.render_list[self.index].rig_name
-                scene_name = self.render_list[self.index].scene_name
-                cam_name = self.render_list[self.index].cam_name
-                track_name = self.render_list[self.index].track_name
-                frame_start = self.render_list[self.index].frame_start
-                frame_end = self.render_list[self.index].frame_end
-                output_path = self.render_list[self.index].output_path
-                
-                if self.set_render_settings(rig_name, scene_name, cam_name, track_name, frame_start, frame_end, output_path) is False:
-                    print("please check the render settings")
-                    return {'FINISHED'}
-                
-                print(f"Currently rendering:{rig_name},{scene_name}, {cam_name}, {track_name}, {frame_start}, {frame_end}, {output_path}")
-                # Call another instance of render with animation
-                bpy.ops.render.render('INVOKE_DEFAULT', animation=True, write_still=True)
+                if self.render_list[self.index].enabled:
+                    #set the render settings and render
+                    rig_name = self.render_list[self.index].rig_name
+                    scene_name = self.render_list[self.index].scene_name
+                    cam_name = self.render_list[self.index].cam_name
+                    track_name = self.render_list[self.index].track_name
+                    frame_start = self.render_list[self.index].frame_start
+                    frame_end = self.render_list[self.index].frame_end
+                    output_path = self.render_list[self.index].output_path
+                    
+                    if self.set_render_settings(rig_name, scene_name, cam_name, track_name, frame_start, frame_end, output_path) is False:
+                        print("please check the render settings")
+                        return {'FINISHED'}
+                    
+                    print(f"Currently rendering:{rig_name},{scene_name}, {cam_name}, {track_name}, {frame_start}, {frame_end}, {output_path}")
+                    # Call another instance of render with animation
+                    bpy.ops.render.render('INVOKE_DEFAULT', animation=True, write_still=True)
+                else:
+                    self.index += 1
 
         return {'PASS_THROUGH'}
 
