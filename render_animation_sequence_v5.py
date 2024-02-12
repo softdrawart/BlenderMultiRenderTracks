@@ -11,7 +11,7 @@ bl_info = {
 import bpy
 
 def update_armature_list(self, context):
-    armature_items = [(obj.name, obj.name, '') for obj in bpy.data.objects if obj.type == 'ARMATURE']
+    armature_items = [(obj.name, obj.name, '') for obj in bpy.data.scenes[self.scene_name].objects if obj.type == 'ARMATURE']
     return armature_items
 
 def update_scene_list(self, context):
@@ -32,8 +32,10 @@ def update_track_list(self, context):
 def update_output_folder(self, context):
     #set output folder based on the context
     output = "//..\\render\\"
-    if self.character_name:
-        output += f"{self.character_name}\\"
+    '''if self.character_name:
+        output += f"{self.character_name}\\"'''
+    if self.scene_name:
+        output += f"{self.scene_name}\\"
     if self.track_name:
         output += f"{self.track_name}\\"
     if self.cam_name:
@@ -57,11 +59,11 @@ class RENDER_Props(bpy.types.PropertyGroup):
         description="Enable Render Layer",
         default=True
     )
-    character_name: bpy.props.StringProperty(
+    '''character_name: bpy.props.StringProperty(
         name="character_name",
         description="Used in the folder structure",
         update=update_output_folder
-    )
+    )'''
     rig_name: bpy.props.EnumProperty(
         items=update_armature_list, 
         description="Armatures", 
@@ -106,17 +108,19 @@ class RENDER_PT(bpy.types.Panel):
 
         
         # Here you want to iterate over your properties and keep the index for the Delete button
-        for i, prop in enumerate(context.window_manager.render_panel_props):
+        properties = bpy.data.workspaces[0].render_panel_props
+        for i, prop in enumerate(properties):
             render_box = layout.box()
             header = render_box.row()
             header.prop(prop, "enabled")
             header.label(text = f'Render {i + 1}')
+            header.label(text = properties[i].output_path)
             header.prop(prop, "folded", icon='DISCLOSURE_TRI_DOWN' if prop.folded else 'DISCLOSURE_TRI_RIGHT')
             if prop.folded:
                 col = render_box.column()
-                col.prop(prop, "character_name")
-                col.prop(prop, "rig_name")
+                #col.prop(prop, "character_name")
                 col.prop(prop, "scene_name")
+                col.prop(prop, "rig_name")
                 col.prop(prop, "cam_name")
                 col.prop(prop, "track_name")
                 row = col.row()
@@ -136,7 +140,7 @@ class RENDER_OT_AddRender(bpy.types.Operator):
     bl_label = "Create new render"
 
     def execute(self, context):
-        context.window_manager.render_panel_props.add()
+        bpy.data.workspaces[0].render_panel_props.add()
         return {'FINISHED'}
     
 class RENDER_OT_DeleteRender(bpy.types.Operator):
@@ -147,9 +151,9 @@ class RENDER_OT_DeleteRender(bpy.types.Operator):
     index: bpy.props.IntProperty()
 
     def execute(self, context):
-        context.window_manager.render_panel_props.remove(self.index)
+        bpy.data.workspaces[0].render_panel_props.remove(self.index)
         return {'FINISHED'}
-    
+
 class RENDER_SEQ_OT(bpy.types.Operator):
     bl_idname = "render.render_seq_operator"
     bl_label = "Render Sequence Operator"
@@ -234,7 +238,7 @@ class RENDER_SEQ_OT(bpy.types.Operator):
         self.index = 0
         self.stop = False
         self.rendering = False
-        self.render_list = bpy.context.window_manager.render_panel_props
+        self.render_list = bpy.data.workspaces[0].render_panel_props
         #append threads
         bpy.app.handlers.render_pre.append(self.pre)
         bpy.app.handlers.render_complete.append(self.complete)
@@ -291,9 +295,8 @@ classes = (
 def register():
     for my_class in classes:
         bpy.utils.register_class(my_class)
-        
     # We only need a single collection property after all.
-    bpy.types.WindowManager.render_panel_props = bpy.props.CollectionProperty(type = RENDER_Props)
+    bpy.types.WorkSpace.render_panel_props = bpy.props.CollectionProperty(type = RENDER_Props)
         
 def unregister():
     for my_class in classes:
