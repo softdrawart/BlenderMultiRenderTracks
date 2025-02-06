@@ -85,9 +85,12 @@ def update_output_folder(self, context):
         output += f"{self.track_name}\\"
     #--camera
     if self.cam_name == 'NONE':
-        if self.scene_name == 'up' or self.view_name == 'up':
+        scene_separated = self.scene_name.split('_')
+        view_separated = self.view_name.split('_')
+        
+        if 'up' in scene_separated or 'up' in view_separated:
                 output += "up\\"
-        elif self.scene_name == 'down' or self.view_name == 'down':
+        elif 'down' in scene_separated or 'down' in view_separated:
                 output += "down\\"
     else:
         output += f"{self.cam_name}\\"
