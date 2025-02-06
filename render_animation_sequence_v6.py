@@ -84,7 +84,12 @@ def update_output_folder(self, context):
     if self.track_name:
         output += f"{self.track_name}\\"
     #--camera
-    if self.cam_name:
+    if self.cam_name == 'NONE':
+        if self.scene_name == 'up' or self.view_name == 'up':
+                output += "up\\"
+        elif self.scene_name == 'down' or self.view_name == 'down':
+                output += "down\\"
+    else:
         output += f"{self.cam_name}\\"
         
     self.output_path = output
