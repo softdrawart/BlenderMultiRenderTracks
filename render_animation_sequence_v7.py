@@ -283,8 +283,8 @@ class RENDER_Props(bpy.types.PropertyGroup):
         description="Stored Collections Exclude parametr"
         )
 
-class RENDER_PT(bpy.types.Panel):
-    bl_idname = 'RENDER_PT'
+class RENDER_PT_Panel(bpy.types.Panel):
+    bl_idname = 'RENDER_PT_Panel'
     bl_label = 'Render Sequences'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -307,7 +307,9 @@ class RENDER_PT(bpy.types.Panel):
         if len(properties) > 0:
             header.prop(workspace, 'render_enable_all')
             header.operator(RENDER_OT_UpdateTrackTime.bl_idname, text = "Update Time")
-            header.operator(RENDER_OT_DeleteTracks.bl_idname, text = "Remove selected")
+            header.alert = True
+            header.operator(RENDER_OT_DeleteTracks.bl_idname, text = "-Remove selected-")
+            header.alert = False
             header.prop(workspace, "render_folded_all", icon='DISCLOSURE_TRI_DOWN' if workspace.render_folded_all else 'DISCLOSURE_TRI_RIGHT')
         # Here you want to iterate over your properties and keep the index for the Delete button
         for i, prop in enumerate(properties):
@@ -344,7 +346,7 @@ class RENDER_PT(bpy.types.Panel):
                 #button delete
                 col.alert = True
                 row = col.row()
-                row.operator(RENDER_OT_DeleteRender.bl_idname, text = "- remove -").index=i
+                row.operator(RENDER_OT_DeleteRender.bl_idname, text = "-Remove-").index=i
                 row.alert = False
                 row.operator(RENDER_OT_DuplicateRender.bl_idname, text = "duplicate").index=i #duplicate
         #render button
@@ -542,15 +544,23 @@ class RENDER_SEQ_OT(bpy.types.Operator):
         return True #everything is set up corectly 
     
     def pre(self, scene, context=None):
-        self.rendering = True
+        try:
+            self.rendering = True
+        except ReferenceError as e:
+            pass
         
     def complete(self, scene, context=None):
-        self.index += 1
-        self.rendering = False
-        
+        try:
+            self.index += 1
+            self.rendering = False
+        except ReferenceError as e:
+            pass
         
     def canceled(self, scene, context=None):
-        self.stop = True
+        try:
+            self.stop = True
+        except ReferenceError as e:
+            pass
     
     def execute(self, context):
         # Unregister old handlers if they exist
@@ -606,7 +616,7 @@ class RENDER_SEQ_OT(bpy.types.Operator):
                         render_data.frame_start,
                         render_data.frame_end,
                         render_data.output_path,
-                        self.prop.render_fps
+                        self.props.render_fps
                     )
                     
                     
@@ -625,7 +635,7 @@ class RENDER_SEQ_OT(bpy.types.Operator):
 classes = (
 
             RENDER_Props,
-            RENDER_PT,
+            RENDER_PT_Panel,
             RENDER_OT_AddRender,
             RENDER_OT_DeleteRender,
             RENDER_OT_DuplicateRender,
