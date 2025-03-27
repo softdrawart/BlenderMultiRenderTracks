@@ -197,10 +197,11 @@ def update_folded_all(self, context):
     props = bpy.data.workspaces[0].render_panel_props
     if props and len(props)>0:
         for prop in props:
-            if prop.folded != self.render_folded_all:
-                #copy enable from global enable boolean
-                prop.folded = self.render_folded_all
-                print(f"Folded {prop.track_name}")
+            if prop.enabled:
+                if prop.folded != self.render_folded_all:
+                    #copy enable from global enable boolean
+                    prop.folded = self.render_folded_all
+                    print(f"Folded {prop.track_name}")
 
 def form_render_text(self, property):
     #format "{character_name|track_name|camera}"
