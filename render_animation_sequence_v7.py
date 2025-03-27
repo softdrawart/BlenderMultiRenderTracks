@@ -299,6 +299,9 @@ class RENDER_PT(bpy.types.Panel):
         header.prop(workspace, 'render_character_name')
         header.operator(RENDER_OT_AddAllTracks.bl_idname, text = "Add all tracks")
         header = layout.row()
+
+        header.prop(workspace, 'render_fps')
+        header = layout.row()
         #Global settings | update all tracks, fold or unfold all tracks, enable or disable tracks
         if len(properties) > 0:
             header.prop(workspace, 'render_enable_all')
@@ -474,7 +477,7 @@ class RENDER_SEQ_OT(bpy.types.Operator):
     rendering = False
     _timer = None
     
-    def set_render_settings(self, rig_name, scene_name, cam_name, view_name, track_name, frame_start, frame_end, output_path):
+    def set_render_settings(self, rig_name, scene_name, cam_name, view_name, track_name, frame_start, frame_end, output_path, fps):
         
         # Get the scene by name
         scene = bpy.data.scenes.get(scene_name)
@@ -522,7 +525,7 @@ class RENDER_SEQ_OT(bpy.types.Operator):
         # Set the render settings
         scene.frame_start = frame_start
         scene.frame_end = frame_end
-        scene.render.fps = 12
+        scene.render.fps = fps
         scene.render.use_file_extension = True
         scene.render.image_settings.color_mode = 'RGBA'
         scene.render.filepath = output_path
@@ -560,7 +563,8 @@ class RENDER_SEQ_OT(bpy.types.Operator):
         self.index = 0
         self.stop = False
         self.rendering = False
-        self.render_list = bpy.data.workspaces[0].render_panel_props
+        self.props = props = bpy.data.workspaces[0]
+        self.render_list = props.render_panel_props
         #append threads
         bpy.app.handlers.render_pre.append(self.pre)
         bpy.app.handlers.render_complete.append(self.complete)
@@ -600,7 +604,8 @@ class RENDER_SEQ_OT(bpy.types.Operator):
                         render_data.track_name,
                         render_data.frame_start,
                         render_data.frame_end,
-                        render_data.output_path
+                        render_data.output_path,
+                        self.prop.render_fps
                     )
                     
                     
@@ -631,6 +636,13 @@ classes = (
             RESTORE_OT_collection_visibility,
             CLEAR_OT_collection_visibility,
         )
+props = [
+    "render_panel_props",
+    "render_enable_all",
+    "render_character_name",
+    "render_folded_all",
+    "render_fps"
+]
         
 def register():
     for my_class in classes:
@@ -650,11 +662,18 @@ def register():
         default=True,
         update=update_folded_all
     )
+    bpy.types.WorkSpace.render_fps = bpy.props.IntProperty(
+        name="fps:",
+        default=12,
+    )
     
         
 def unregister():
     for my_class in classes:
         bpy.utils.unregister_class(my_class)
+    for prop in props:
+        if hasattr(bpy.types.WorkSpace, prop):
+            delattr(bpy.types.WorkSpace, prop)
             
 if __name__ == '__main__':
     register()
