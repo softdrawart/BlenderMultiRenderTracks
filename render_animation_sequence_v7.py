@@ -382,7 +382,7 @@ class RENDER_OT_AddAllTracks(bpy.types.Operator):
 
         if arm.animation_data and arm.animation_data.nla_tracks:
             #collect all collection visibiltiy
-            collection_visibility = json.dumps(get_collection_path(bpy.context.view_layer.layer_collection))
+            #collection_visibility = json.dumps(get_collection_path(bpy.context.view_layer.layer_collection))
 
             for track in arm.animation_data.nla_tracks:
                 #if track name is in existing names and character name is not default CHARACTER_NAME
@@ -393,7 +393,7 @@ class RENDER_OT_AddAllTracks(bpy.types.Operator):
                     prop.scene_name = scene
                     prop.view_name = view
                     prop.track_name = track.name
-                    prop.collection_visibility = collection_visibility
+                    #prop.collection_visibility = collection_visibility
                     print(f"Added track: {track.name}")
 
         return {'FINISHED'}
