@@ -154,7 +154,11 @@ def update_output_folder(self, context):
     #format "{render\character_name\track_name\camera\}"
     #set output folder based on the context
     output = "//..\\render\\"
-
+    
+    # Check all name parts for 'up' or 'down'
+    def split_parts(name):
+        return name.split('_') if name else []
+    
     #character
     match self.character_name:
         case '':
@@ -166,22 +170,24 @@ def update_output_folder(self, context):
         case _:
             output += f"{self.character_name}\\"
     #-track
-    track_separated = self.track_name.split('_')
+    track_parts = ''
     if self.track_name:
-        track_separated = self.track_name.split('_')
-        cleaned_name = '_'.join([part for part in track_separated if part not in ['up', 'down']])
+        track_parts = split_parts(self.track_name)
+        cleaned_name = '_'.join([part for part in track_parts if part not in ['up', 'down']])
         output += f"{cleaned_name}\\"
     #--camera
-    if self.cam_name == 'NONE':
-        scene_separated = self.scene_name.split('_')
-        view_separated = self.view_name.split('_')
+    if 'down' or 'up' in [self.cam_name, self.scene_name, self.view_name, self.track_name]:
+        name_parts = (
+            split_parts(self.scene_name) +
+            split_parts(self.view_name) +
+            track_parts +
+            split_parts(self.cam_name)
+        )   
         
-        if 'up' in scene_separated or 'up' in view_separated or 'up' in track_separated:
-                output += "up\\"
-        elif 'down' in scene_separated or 'down' in view_separated or 'down' in track_separated:
-                output += "down\\"
-    else:
-        output += f"{self.cam_name}\\"
+        if 'up' in name_parts:
+            output += "up\\"
+        elif 'down' in name_parts:
+            output += "down\\"
         
     self.output_path = output
 
@@ -209,8 +215,15 @@ def form_render_text(self, property):
     output = ""
 
     #character
-    if property.character_name:
-        output += f"{property.character_name}"
+    match property.character_name:
+        case '':
+            pass
+        case 'scene':
+            output += f"{property.scene_name}\\"
+        case 'view_layer':
+            output += f"{property.view_name}\\"
+        case _:
+            output += f"{property.character_name}"
     #-track
     track_separated = property.track_name.split('_')
     if property.track_name:
@@ -218,16 +231,11 @@ def form_render_text(self, property):
         cleaned_name = '_'.join([part for part in track_separated if part not in ['up', 'down']])
         output += f"|{cleaned_name}"
     #--camera
-    if property.cam_name == 'NONE':
-        scene_separated = property.scene_name.split('_')
-        view_separated = property.view_name.split('_')
-        
-        if 'up' in scene_separated or 'up' in view_separated or 'up' in track_separated:
-                output += "|up"
-        elif 'down' in scene_separated or 'down' in view_separated or 'down' in track_separated:
-                output += "|down"
-    else:
-        output += f"|{property.cam_name}"
+    name_parts = property.output_path.split('\\') if property.output_path else []
+    if 'up' in name_parts:
+        output += "|up"
+    elif 'down' in name_parts:
+        output += "|down"
         
     return output
 
@@ -307,6 +315,7 @@ class RENDER_PT_Panel(bpy.types.Panel):
         if len(properties) > 0:
             header.prop(workspace, 'render_enable_all')
             header.operator(RENDER_OT_UpdateTrackTime.bl_idname, text = "Update Time")
+            header.operator(RENDER_OT_DuplicateTracks.bl_idname, text = "Duplicate")
             header.alert = True
             header.operator(RENDER_OT_DeleteTracks.bl_idname, text = "-Remove selected-")
             header.alert = False
@@ -354,6 +363,40 @@ class RENDER_PT_Panel(bpy.types.Panel):
         footer.operator('render.add_render', text = "Add")
         footer.operator(RENDER_SEQ_OT.bl_idname, text = "Render", icon='RENDER_ANIMATION')
 
+def add_render_prop(
+    collection,
+    rig_name="",
+    character_name="",
+    scene_name="",
+    view_name="",
+    cam_name="",
+    track_name="",
+    frame_start=1,
+    frame_end=250,
+    output_path="",
+    folded=False,
+    enabled=True,
+    collection_visibility=True,
+):
+    props = bpy.data.workspaces[0].render_panel_props
+    if props:
+        prop = props.add()
+        prop.rig_name = rig_name
+        prop.character_name = character_name
+        prop.scene_name = scene_name
+        prop.view_name = view_name
+        prop.cam_name = cam_name
+        prop.track_name = track_name
+        prop.frame_start = frame_start
+        prop.frame_end = frame_end
+        prop.output_path = output_path
+        prop.folded = folded
+        prop.enabled = enabled
+        prop.collection_visibility = collection_visibility
+        return prop
+    else:
+        return None
+
 class RENDER_OT_AddAllTracks(bpy.types.Operator):
     """Add all NLA tracks from the active armature"""
     bl_idname = "render.add_all_tracks"
@@ -374,6 +417,7 @@ class RENDER_OT_AddAllTracks(bpy.types.Operator):
         workspace = bpy.data.workspaces[0]
         props = workspace.render_panel_props  # Ensure this exists
         arm = context.active_object  # Get the active armature
+        camera = context.scene.camera
         scene = context.scene.name
         view = context.view_layer.name
 
@@ -393,6 +437,8 @@ class RENDER_OT_AddAllTracks(bpy.types.Operator):
                     prop.scene_name = scene
                     prop.view_name = view
                     prop.track_name = track.name
+                    if camera:
+                        prop.cam_name = camera.name
                     #prop.collection_visibility = collection_visibility
                     print(f"Added track: {track.name}")
 
@@ -414,6 +460,33 @@ class RENDER_OT_UpdateTrackTime(bpy.types.Operator):
                         prop.track_name = old_name
                         print(f"Updated Times {prop.track_name}")
         return {'FINISHED'}
+
+class RENDER_OT_DuplicateTracks(bpy.types.Operator):
+    """ Duplicate selected tracks"""
+    bl_idname = "render.duplicate_tracks"
+    bl_label = "duplicate selected tracks"
+    @classmethod
+    def poll(cls, context):
+        tracks = bpy.data.workspaces[0].render_panel_props
+        return len(tracks)>0 and True in [track.enabled for track in tracks]
+    
+    def execute(self, context):
+        tracks = bpy.data.workspaces[0].render_panel_props
+        #loop and add only that prop that is enabled
+        if props and len(props) > 0:
+            for initial in tracks:
+                if initial.enabled:
+                    duplicate = bpy.data.workspaces[0].render_panel_props.add()
+                    #copy properties from initial to duplicate
+                    for prop in initial.bl_rna.properties:
+                        prop_name = prop.name
+                        if hasattr(initial, prop_name):
+                            setattr(duplicate, prop_name, getattr(initial, prop_name))
+                    print(f"Duplicated {initial.track_name}")
+            return {'FINISHED'}
+        else:
+            return {'CANCELLED'}
+        
 
 class RENDER_OT_DeleteTracks(bpy.types.Operator):
     """ delete selected tracks """
@@ -646,6 +719,7 @@ classes = (
             STORE_OT_collection_visibility,
             RESTORE_OT_collection_visibility,
             CLEAR_OT_collection_visibility,
+            RENDER_OT_DuplicateTracks,
         )
 props = [
     "render_panel_props",
